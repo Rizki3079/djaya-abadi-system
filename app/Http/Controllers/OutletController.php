@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Outlet;
+use App\Models\IncomeCategory;
+use App\Models\PaymentMethod;
 
 class OutletController extends Controller
 {
@@ -22,7 +24,13 @@ class OutletController extends Controller
      */
     public function create()
     {
-        return view('outlets.create');
+        $incomeCategories = IncomeCategory::where('status', true)->get();
+        $paymentMethods = PaymentMethod::where('status', true)->get();
+
+        return view(
+            'outlets.create',
+            compact('incomeCategories', 'paymentMethods')
+        );
     }
 
     /**
@@ -31,16 +39,24 @@ class OutletController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-        'name' => 'required',
-        'code' => 'required|unique:outlets,code',
-        'status' => 'required',
+            'name' => 'required',
+            'code' => 'required|unique:outlets,code',
+            'status' => 'required',
         ]);
 
-        Outlet::create([
+        $outlet = Outlet::create([
             'name' => $request->name,
             'code' => $request->code,
             'status' => $request->status,
         ]);
+
+        $outlet->incomeCategories()->sync(
+            $request->income_categories ?? []
+        );
+
+        $outlet->paymentMethods()->sync(
+            $request->payment_methods ?? []
+        );
 
         return redirect()
             ->route('outlets.index')
@@ -60,7 +76,17 @@ class OutletController extends Controller
      */
     public function edit(Outlet $outlet)
     {
-        return view('outlets.edit', compact('outlet'));
+        $incomeCategories = IncomeCategory::where('status', true)->get();
+        $paymentMethods = PaymentMethod::where('status', true)->get();
+
+        return view(
+            'outlets.edit',
+            compact(
+                'outlet',
+                'incomeCategories',
+                'paymentMethods'
+            )
+        );
     }
 
     /**
@@ -79,6 +105,14 @@ class OutletController extends Controller
             'code' => $request->code,
             'status' => $request->status,
         ]);
+
+        $outlet->incomeCategories()->sync(
+            $request->income_categories ?? []
+        );
+
+        $outlet->paymentMethods()->sync(
+            $request->payment_methods ?? []
+        );
 
         return redirect()
             ->route('outlets.index')

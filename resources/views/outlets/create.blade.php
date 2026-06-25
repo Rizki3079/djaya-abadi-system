@@ -72,6 +72,42 @@
                         </select>
                     </div>
 
+                    <div class="mb-4">
+                        <label class="block mb-2 font-semibold">
+                            Kategori Pendapatan
+                        </label>
+
+                        @foreach($incomeCategories as $category)
+                            <div>
+                                <input
+                                    type="checkbox"
+                                    name="income_categories[]"
+                                    value="{{ $category->id }}"
+                                >
+
+                                {{ $category->name }}
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block mb-2 font-semibold">
+                            Metode Pembayaran
+                        </label>
+
+                        @foreach($paymentMethods as $method)
+                            <div>
+                                <input
+                                    type="checkbox"
+                                    name="payment_methods[]"
+                                    value="{{ $method->id }}"
+                                >
+
+                                {{ $method->name }}
+                            </div>
+                        @endforeach
+                    </div>
+
                     <div class="flex gap-2">
                         <button type="submit"
                                 class="bg-blue-500 text-white px-4 py-2 rounded">

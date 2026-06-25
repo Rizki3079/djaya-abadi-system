@@ -20,4 +20,20 @@ class Outlet extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    public function incomeCategories()
+    {
+        return $this->belongsToMany(
+            IncomeCategory::class,
+            'outlet_income_categories'
+        );
+    }                                                                                   
+
+    public function paymentMethods()
+    {
+        return $this->belongsToMany(
+            PaymentMethod::class,
+            'outlet_payment_methods'
+        );
+    }
 }
