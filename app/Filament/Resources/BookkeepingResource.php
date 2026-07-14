@@ -12,6 +12,9 @@ use Filament\Tables\Table;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Section;
+use App\Models\Outlet;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 
 class BookkeepingResource extends Resource
 {
@@ -37,7 +40,75 @@ class BookkeepingResource extends Resource
                     ->relationship('outlet', 'name')
                     ->searchable()
                     ->preload()
+                    ->live()
+                    ->afterStateUpdated(function ($state, Set $set) {
+
+                        if (!$state) {
+                            $set('incomeItems', []);
+                            $set('paymentItems', []);
+                            return;
+                        }
+
+                        $outlet = Outlet::find($state);
+
+                        if (!$outlet) {
+                            return;
+                        }
+
+                        $set(
+                            'incomeItems',
+                            $outlet->getIncomeItemsTemplate()
+                        );
+
+                        $set(
+                            'paymentItems',
+                            $outlet->getPaymentItemsTemplate()
+                        );
+
+                    })
                     ->required(),
+
+                Forms\Components\Placeholder::make('income_preview')
+                    ->label('Preview Income Category')
+                    ->content(function (Forms\Get $get) {
+
+                        if (!$get('outlet_id')) {
+                            return 'Pilih outlet terlebih dahulu';
+                        }
+
+                        $outlet = \App\Models\Outlet::with('incomeCategories')
+                            ->find($get('outlet_id'));
+
+                        if (!$outlet) {
+                            return '-';
+                        }
+
+                        return $outlet->incomeCategories
+                            ->pluck('name')
+                            ->implode(', ');
+                    })
+                    ->live(),    
+
+                Forms\Components\Placeholder::make('payment_preview')
+                    ->label('Preview Payment Method')
+                    ->content(function (Forms\Get $get) {
+
+                        if (!$get('outlet_id')) {
+                            return 'Pilih outlet terlebih dahulu';
+                        }
+
+                        $outlet = \App\Models\Outlet::with('paymentMethods')
+                            ->find($get('outlet_id'));
+
+                        if (!$outlet) {
+                            return '-';
+                        }
+
+                        return $outlet->paymentMethods
+                            ->pluck('name')
+                            ->implode(', ');
+                    })
+                    ->live(),
 
                 Forms\Components\Select::make('user_id')
                     ->label('Kasir')
@@ -53,15 +124,25 @@ class BookkeepingResource extends Resource
                             ->schema([
                                 TextInput::make('name')
                                     ->label('Kategori')
+                                    ->disabled()
+                                    ->dehydrated()
                                     ->required(),
 
                                 TextInput::make('amount')
                                     ->label('Nominal')
                                     ->numeric()
+                                    ->live(debounce: 500)
+                                    ->afterStateUpdated(function (Get $get, Set $set) {
+                                        self::recalculateTotals($get, $set);
+                                    })
                                     ->required(),
                             ])
                             ->columns(2)
-                            ->defaultItems(0),
+                            ->defaultItems(0)
+                            ->addable(false)
+                            ->deletable(false)
+                            ->reorderable(false)
+                            ->collapsible(false),
                     ]),
 
                 Section::make('Pembayaran Non Tunai')
@@ -71,15 +152,25 @@ class BookkeepingResource extends Resource
                             ->schema([
                                 TextInput::make('method_name')
                                     ->label('Metode Pembayaran')
+                                    ->disabled()
+                                    ->dehydrated()
                                     ->required(),
 
                                 TextInput::make('amount')
                                     ->label('Nominal')
                                     ->numeric()
+                                    ->live(debounce: 500)
+                                    ->afterStateUpdated(function (Get $get, Set $set) {
+                                        self::recalculateTotals($get, $set);
+                                    })
                                     ->required(),
                             ])
                             ->columns(2)
-                            ->defaultItems(0),
+                            ->defaultItems(0)
+                            ->addable(false)
+                            ->deletable(false)
+                            ->reorderable(false)
+                            ->collapsible(false),
                     ]),
 
                 Section::make('Pengeluaran')
@@ -115,6 +206,9 @@ class BookkeepingResource extends Resource
                                 TextInput::make('amount')
                                     ->label('Nominal')
                                     ->numeric()
+                                    ->live(debounce: 500)
+                                    ->afterStateUpdated(function (Get $get, Set $set) {
+                                        self::recalculateTotals($get, $set);})
                                     ->required(),
                             ])
                             ->columns(2)
@@ -124,16 +218,28 @@ class BookkeepingResource extends Resource
                 Forms\Components\TextInput::make('tax')
                     ->label('Pajak')
                     ->numeric()
+                    ->live(debounce: 500)
+                    ->afterStateUpdated(function (Get $get, Set $set) {
+                        self::recalculateTotals($get, $set);
+                    })
                     ->default(0),
 
                 Forms\Components\TextInput::make('service')
                     ->label('Service')
                     ->numeric()
+                    ->live(debounce: 500)
+                    ->afterStateUpdated(function (Get $get, Set $set) {
+                        self::recalculateTotals($get, $set);
+                    })
                     ->default(0),
 
                 Forms\Components\TextInput::make('owner_note_amount')
                     ->label('Nota Owner')
                     ->numeric()
+                    ->live(debounce: 500)
+                    ->afterStateUpdated(function (Get $get, Set $set) {
+                        self::recalculateTotals($get, $set);
+                    })
                     ->default(0),
 
                 Forms\Components\Textarea::make('notes')
@@ -206,6 +312,45 @@ class BookkeepingResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    protected static function recalculateTotals(Get $get, Set $set): void
+    {
+        // Net Sales (Food + Drink + Add On + dst)
+        $netSales = collect($get('incomeItems'))
+            ->sum(fn ($item) => (float) ($item['amount'] ?? 0));
+
+        // Pajak
+        $tax = (float) ($get('tax') ?? 0);
+
+        // Service
+        $service = (float) ($get('service') ?? 0);
+
+        // Total Pendapatan (Gross)
+        $totalIncome = $netSales + $tax + $service;
+
+        // Non Tunai
+        $totalNonCash = collect($get('paymentItems'))
+            ->sum(fn ($item) => (float) ($item['amount'] ?? 0));
+
+        // Pengeluaran
+        $totalExpense = collect($get('expenseItems'))
+            ->sum(fn ($item) => (float) ($item['amount'] ?? 0));
+
+        // Nota Owner
+        $ownerNote = (float) ($get('owner_note_amount') ?? 0);
+
+        $set('total_income', $totalIncome);
+        $set('total_non_cash', $totalNonCash);
+        $set('total_expense', $totalExpense);
+
+        $set(
+            'cash_on_hand',
+            $totalIncome
+            - $totalNonCash
+            - $totalExpense
+            - $ownerNote
+        );
     }
 
     public static function getRelations(): array

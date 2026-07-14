@@ -47,4 +47,36 @@ class Bookkeeping extends Model
     {
         return $this->hasMany(BookkeepingExpenseItem::class);
     }
+
+    public function recalculateTotals(): void
+    {
+        // Net Sales
+        $netSales = $this->incomeItems()->sum('amount');
+
+        // Total Pendapatan (Gross)
+        $totalIncome =
+            $netSales
+            + $this->tax
+            + $this->service;
+
+        // Total Non Cash
+        $totalNonCash = $this->paymentItems()->sum('amount');
+
+        // Total Pengeluaran
+        $totalExpense = $this->expenseItems()->sum('amount');
+
+        // Cash On Hand
+        $cashOnHand =
+            $totalIncome
+            - $totalNonCash
+            - $totalExpense
+            - $this->owner_note_amount;
+
+        $this->update([
+            'total_income' => $totalIncome,
+            'total_non_cash' => $totalNonCash,
+            'total_expense' => $totalExpense,
+            'cash_on_hand' => $cashOnHand,
+        ]);
+    }
 }

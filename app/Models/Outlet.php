@@ -36,4 +36,30 @@ class Outlet extends Model
             'outlet_payment_methods'
         );
     }
+
+    public function getIncomeItemsTemplate(): array
+    {
+        return $this->incomeCategories
+            ->map(function ($category) {
+                return [
+                    'name' => $category->name,
+                    'amount' => 0,
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
+    public function getPaymentItemsTemplate(): array
+    {
+        return $this->paymentMethods
+            ->map(function ($method) {
+                return [
+                    'method_name' => $method->name,
+                    'amount' => 0,
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
 }

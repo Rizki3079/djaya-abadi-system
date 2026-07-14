@@ -23,6 +23,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'outlet_id',
     ];
 
     public function outlet()
