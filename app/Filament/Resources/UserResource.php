@@ -10,12 +10,12 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use App\Models\Outlet;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Select;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Permission\Models\Role;
 
 
 
@@ -54,15 +54,12 @@ class UserResource extends Resource
                     ->preload(),
 
                 Select::make('role')
-                    ->label('Role')
-                    ->options([
-                        'super_admin' => 'Super Admin',
-                        'admin' => 'Admin',
-                        'finance' => 'Finance',
-                        'outlet' => 'Outlet',
-                    ])
-                    ->required()
-                    ->dehydrated(false),
+                    ->options(
+                        Role::pluck('name', 'name')
+                    )
+                    ->default(fn (?User $record) => $record?->getRoleNames()->first())
+                    ->required(),
+                    
                     
 
             ]);
@@ -100,6 +97,14 @@ class UserResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAnyRole([
+            'super_admin',
+            'admin',
+        ]);
     }
 
     public static function getRelations(): array

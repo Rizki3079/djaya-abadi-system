@@ -15,6 +15,8 @@ use Filament\Forms\Components\Section;
 use App\Models\Outlet;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
+use Illuminate\Database\Eloquent\Builder;
+use App\Helpers\OutletScopeHelper;
 
 class BookkeepingResource extends Resource
 {
@@ -351,6 +353,18 @@ class BookkeepingResource extends Resource
             - $totalExpense
             - $ownerNote
         );
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return OutletScopeHelper::apply(
+            parent::getEloquentQuery()
+        );
+    }
+
+    public static function canAccess(): bool
+    {
+        return auth()->check();
     }
 
     public static function getRelations(): array

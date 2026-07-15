@@ -64,6 +64,15 @@ class PaymentMethodResource extends Resource
             ]);
     }
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAnyRole([
+            'super_admin',
+            'admin',
+            'finance',
+        ]);
+    }
+
     public static function getRelations(): array
     {
         return [
